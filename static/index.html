@@ -1,0 +1,1095 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Client Behavior Predection Dashboard</title>
+  
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
+  
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f8f9fa;
+      padding: 20px;
+    }
+    .card {
+      margin-bottom: 20px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .card-header {
+      background-color: #f1f8ff;
+      font-weight: 600;
+    }
+    .btn-primary {
+      background-color: #0d6efd;
+    }
+    .btn-success {
+      background-color: #198754;
+    }
+    .chart-container {
+      height: 300px;
+      position: relative;
+    }
+    .metric-card {
+      text-align: center;
+      padding: 15px;
+    }
+    .metric-value {
+      font-size: 24px;
+      font-weight: bold;
+    }
+    .metric-label {
+      font-size: 14px;
+      color: #6c757d;
+    }
+    .metric-change {
+      font-size: 14px;
+      margin-top: 5px;
+    }
+    .positive-change {
+      color: #198754;
+    }
+    .negative-change {
+      color: #dc3545;
+    }
+    .timeline-container {
+      display: flex;
+      align-items: center;
+      margin: 20px 0;
+      padding: 15px;
+      background-color: #f8f9fa;
+      border-radius: 8px;
+      overflow-x: auto;
+    }
+    .timeline-point {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-right: 10px;
+    }
+    .timeline-marker {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background-color: #0d6efd;
+      margin-bottom: 5px;
+    }
+    .timeline-line {
+      height: 2px;
+      width: 80px;
+      background-color: #0d6efd;
+      margin: 0 10px;
+    }
+    .timeline-label {
+      font-size: 12px;
+      background-color: #e9ecef;
+      padding: 3px 8px;
+      border-radius: 4px;
+    }
+    .scenario-change-row {
+      background-color: #e0f7fa;
+    }
+    .loader {
+      border: 5px solid #f3f3f3;
+      border-top: 5px solid #3498db;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      animation: spin 1s linear infinite;
+      margin: 20px auto;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container-fluid">
+    <div class="card">
+      <div class="card-header">
+        <h1 class="card-title">Client Behavior Predection Dashboard</h1>
+        <p class="text-muted">Dynamic visualization of Client Behavior Prediction using Markov Chains</p>
+      </div>
+      
+      <div class="card-body">
+        <!-- Loading indicator -->
+        <div id="loader" class="loader" style="display: none;"></div>
+        
+        <!-- Error message container -->
+        <div id="error-container" class="alert alert-danger" style="display: none;"></div>
+        
+        <!-- Scenario Timeline -->
+        <div id="timeline-container" class="timeline-container" style="display: none;"></div>
+        
+        <!-- Parameters row -->
+        <div class="row">
+          <!-- Initial Parameters -->
+          <div class="col-md-6">
+            <div class="card">
+              <div class="card-header">Initial Simulation Parameters</div>
+              <div class="card-body">
+                <div class="row">
+                  <div class="col-md-6 mb-3">
+                    <label for="initialCustomers" class="form-label">Initial Customers:</label>
+                    <input type="number" class="form-control" id="initialCustomers" value="10000" min="1">
+                  </div>
+                  <div class="col-md-6 mb-3">
+                    <label for="newCustomersPerMonth" class="form-label">Customer Acquisition/Month:</label>
+                    <input type="number" class="form-control" id="newCustomersPerMonth" value="800" min="0">
+                  </div>
+                  <div class="col-md-6 mb-3">
+                    <label for="initialMonths" class="form-label">Months to Simulate:</label>
+                    <input type="number" class="form-control" id="initialMonths" value="12" min="1" max="60">
+                  </div>
+                  <div class="col-md-6 mb-3">
+                    <label for="initialScenario" class="form-label">Initial Scenario:</label>
+                    <select class="form-select" id="initialScenario"></select>
+                  </div>
+                </div>
+                <button id="run-btn" class="btn btn-primary w-100">Run Initial Simulation</button>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Extension Parameters -->
+          <div class="col-md-6">
+            <div class="card">
+              <div class="card-header">Extend Simulation</div>
+              <div class="card-body">
+                <div class="row">
+                  <div class="col-md-6 mb-3">
+                    <label for="additionalMonths" class="form-label">Additional Months:</label>
+                    <input type="number" class="form-control" id="additionalMonths" value="3" min="1" max="60">
+                  </div>
+                  <div class="col-md-6 mb-3">
+                    <label for="newScenario" class="form-label">New Scenario:</label>
+                    <select class="form-select" id="newScenario"></select>
+                  </div>
+                </div>
+                <button id="extend-btn" class="btn btn-success w-100" disabled>Extend Simulation with New Scenario</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Results Section (Hidden until simulation is run) -->
+        <div id="results-section" style="display: none;">
+          <!-- KPI Cards -->
+          <div class="row mt-4" id="kpi-cards">
+            <div class="col-md-3">
+              <div class="card metric-card">
+                <h3 class="metric-label">Total Customers</h3>
+                <div class="metric-value" id="total-customers">0</div>
+                <div class="metric-change" id="customer-change"></div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="card metric-card">
+                <h3 class="metric-label">Monthly Revenue</h3>
+                <div class="metric-value" id="monthly-revenue">$0</div>
+                <div class="metric-change" id="revenue-change"></div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="card metric-card">
+                <h3 class="metric-label">Churn Rate</h3>
+                <div class="metric-value" id="churn-rate">0%</div>
+                <div class="metric-change" id="churn-trend"></div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="card metric-card">
+                <h3 class="metric-label">Revenue at Risk (Annual)</h3>
+                <div class="metric-value" id="revenue-at-risk">$0</div>
+                <div class="metric-label">Due to current churn</div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Charts -->
+          <div class="row mt-4">
+            <div class="col-md-6">
+              <div class="card">
+                <div class="card-header">Customer Segments Over Time</div>
+                <div class="card-body">
+                  <div class="chart-container">
+                    <canvas id="segments-chart"></canvas>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="card">
+                <div class="card-header">Monthly Revenue</div>
+                <div class="card-body">
+                  <div class="chart-container">
+                    <canvas id="revenue-chart"></canvas>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="row mt-4">
+            <div class="col-md-6">
+              <div class="card">
+                <div class="card-header">Churn Rate</div>
+                <div class="card-body">
+                  <div class="chart-container">
+                    <canvas id="churn-chart"></canvas>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="card">
+                <div class="card-header">Current Customer Distribution</div>
+                <div class="card-body">
+                  <div class="chart-container">
+                    <canvas id="distribution-chart"></canvas>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Analysis -->
+          <div class="row mt-4">
+            <div class="col-12">
+              <div class="card">
+                <div class="card-header">Analysis & Insights</div>
+                <div class="card-body">
+                  <div class="row">
+                    <div class="col-md-6">
+                      <h4>Overall Performance</h4>
+                      <ul class="list-group list-group-flush" id="performance-list">
+                      </ul>
+                    </div>
+                    <div class="col-md-6">
+                      <h4>Segment Shifts</h4>
+                      <ul class="list-group list-group-flush" id="segments-list">
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Data Table -->
+          <div class="row mt-4">
+            <div class="col-12">
+              <div class="card">
+                <div class="card-header">Monthly Progression Data</div>
+                <div class="card-body">
+                  <div class="table-responsive">
+                    <table class="table table-striped table-hover" id="data-table">
+                      <thead>
+                        <tr>
+                          <th>Month</th>
+                          <th>IR</th>
+                          <th>LC</th>
+                          <th>OB</th>
+                          <th>DB</th>
+                          <th>NR</th>
+                          <th>Total</th>
+                          <th>Revenue</th>
+                          <th>Churn %</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Define constants
+    const STATES = ["Immediate Repurchase", "Loyal Customer", "Occasional Buyer", "Discount Buyer", "No Repurchase"];
+    const STATE_ABBR = ["IR", "LC", "OB", "DB", "NR"];
+    const COLORS = {
+      "Immediate Repurchase": "#1f77b4",  // Blue
+      "Loyal Customer": "#ff7f0e",        // Orange
+      "Occasional Buyer": "#2ca02c",      // Green
+      "Discount Buyer": "#d62728",        // Red
+      "No Repurchase": "#9467bd",         // Purple
+    };
+    
+    // Chart objects
+    let segmentsChart = null;
+    let revenueChart = null;
+    let churnChart = null;
+    let distributionChart = null;
+    
+    // Simulation data
+    let simResults = [];
+    let scenarioBreakpoints = [];
+    
+    // DOM Elements
+    const runButton = document.getElementById('run-btn');
+    const extendButton = document.getElementById('extend-btn');
+    const initialScenarioSelect = document.getElementById('initialScenario');
+    const newScenarioSelect = document.getElementById('newScenario');
+    const resultsSection = document.getElementById('results-section');
+    const timelineContainer = document.getElementById('timeline-container');
+    const loader = document.getElementById('loader');
+    const errorContainer = document.getElementById('error-container');
+    
+    // Format helpers
+    function formatCurrency(value) {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }).format(value);
+    }
+    
+    function formatNumber(value) {
+      return new Intl.NumberFormat('en-US').format(value);
+    }
+    
+    function formatPercent(value) {
+      return value.toFixed(2) + '%';
+    }
+    
+    // Initialize scenario options
+    fetch('/api/scenarios')
+      .then(response => response.json())
+      .then(scenarios => {
+        // Populate scenario dropdowns
+        scenarios.forEach(scenario => {
+          const initialOption = document.createElement('option');
+          initialOption.value = scenario;
+          initialOption.textContent = scenario;
+          initialScenarioSelect.appendChild(initialOption);
+          
+          const newOption = document.createElement('option');
+          newOption.value = scenario;
+          newOption.textContent = scenario;
+          newScenarioSelect.appendChild(newOption);
+        });
+      })
+      .catch(error => {
+        console.error('Error fetching scenarios:', error);
+        showError("Failed to load scenarios. Please check your server connection.");
+      });
+    
+    // Run initial simulation
+    runButton.addEventListener('click', function() {
+      // Show loader
+      loader.style.display = 'block';
+      resultsSection.style.display = 'none';
+      errorContainer.style.display = 'none';
+      
+      // Get parameters
+      const params = {
+        initialCustomers: parseInt(document.getElementById('initialCustomers').value) || 10000,
+        newCustomersPerMonth: parseInt(document.getElementById('newCustomersPerMonth').value) || 800,
+        months: parseInt(document.getElementById('initialMonths').value) || 12,
+        scenario: document.getElementById('initialScenario').value || 'Default'
+      };
+      
+      // Call API
+      fetch('/api/simulate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params)
+      })
+        .then(response => response.json())
+        .then(data => {
+          // Store results
+          simResults = data;
+          scenarioBreakpoints = [{ month: 0, scenario: params.scenario }];
+          
+          // Update UI
+          updateAllCharts();
+          updateAnalysis();
+          updateDataTable();
+          updateTimeline();
+          
+          // Show results and enable extend button
+          resultsSection.style.display = 'block';
+          extendButton.disabled = false;
+          loader.style.display = 'none';
+        })
+        .catch(error => {
+          console.error('Error running simulation:', error);
+          showError("Failed to run simulation. Please check your parameters and try again.");
+          loader.style.display = 'none';
+        });
+    });
+    
+    // Extend simulation
+    extendButton.addEventListener('click', function() {
+      if (simResults.length === 0) return;
+      
+      // Show loader
+      loader.style.display = 'block';
+      errorContainer.style.display = 'none';
+      
+      // Get parameters
+      const lastResult = simResults[simResults.length - 1];
+      const lastMonth = lastResult.Month;
+      
+      const params = {
+        newCustomersPerMonth: parseInt(document.getElementById('newCustomersPerMonth').value) || 800,
+        months: parseInt(document.getElementById('additionalMonths').value) || 3,
+        scenario: document.getElementById('newScenario').value || 'Default',
+        previousResults: simResults
+      };
+      
+      // Call API
+      fetch('/api/extend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params)
+      })
+        .then(response => response.json())
+        .then(data => {
+          // Check for errors
+          if (data.error) {
+            showError(data.error);
+            loader.style.display = 'none';
+            return;
+          }
+          
+          // Combine results
+          simResults = [...simResults, ...data];
+          
+          // Update scenario breakpoints
+          scenarioBreakpoints.push({ 
+            month: lastMonth + 1, 
+            scenario: params.scenario 
+          });
+          
+          // Update UI
+          updateAllCharts();
+          updateAnalysis();
+          updateDataTable();
+          updateTimeline();
+          
+          // Hide loader
+          loader.style.display = 'none';
+        })
+        .catch(error => {
+          console.error('Error extending simulation:', error);
+          showError("Failed to extend simulation. Please try again.");
+          loader.style.display = 'none';
+        });
+    });
+    
+    // Helper Functions
+    
+    function showError(message) {
+      errorContainer.textContent = message;
+      errorContainer.style.display = 'block';
+    }
+    
+    function updateTimeline() {
+      // Clear existing timeline
+      timelineContainer.innerHTML = '';
+      timelineContainer.style.display = 'flex';
+      
+      // Add scenario breakpoints
+      scenarioBreakpoints.forEach((breakpoint, index) => {
+        const pointDiv = document.createElement('div');
+        pointDiv.className = 'timeline-point';
+        
+        const monthSpan = document.createElement('span');
+        monthSpan.textContent = `Month ${breakpoint.month}`;
+        monthSpan.className = 'small';
+        
+        const markerDiv = document.createElement('div');
+        markerDiv.className = 'timeline-marker';
+        
+        const labelDiv = document.createElement('div');
+        labelDiv.textContent = breakpoint.scenario;
+        labelDiv.className = 'timeline-label';
+        
+        pointDiv.appendChild(monthSpan);
+        pointDiv.appendChild(markerDiv);
+        pointDiv.appendChild(labelDiv);
+        
+        timelineContainer.appendChild(pointDiv);
+        
+        // Add line between points (except after the last one)
+        if (index < scenarioBreakpoints.length - 1) {
+          const lineDiv = document.createElement('div');
+          lineDiv.className = 'timeline-line';
+          timelineContainer.appendChild(lineDiv);
+        }
+      });
+      
+      // Add end point if there are results
+      if (simResults.length > 0) {
+        const lastMonth = simResults[simResults.length - 1].Month;
+        
+        const lineDiv = document.createElement('div');
+        lineDiv.className = 'timeline-line';
+        
+        const pointDiv = document.createElement('div');
+        pointDiv.className = 'timeline-point';
+        
+        const monthSpan = document.createElement('span');
+        monthSpan.textContent = `Month ${lastMonth}`;
+        monthSpan.className = 'small';
+        
+        const markerDiv = document.createElement('div');
+        markerDiv.className = 'timeline-marker';
+        
+        const labelDiv = document.createElement('div');
+        labelDiv.textContent = 'End';
+        labelDiv.className = 'timeline-label';
+        
+        pointDiv.appendChild(monthSpan);
+        pointDiv.appendChild(markerDiv);
+        pointDiv.appendChild(labelDiv);
+        
+        timelineContainer.appendChild(lineDiv);
+        timelineContainer.appendChild(pointDiv);
+      }
+    }
+    
+    function updateAllCharts() {
+      if (simResults.length === 0) return;
+      
+      // Extract data for charts
+      const months = simResults.map(result => result.Month);
+      
+      // Customer segments data
+      const segmentData = {
+        IR: simResults.map(result => result.Immediate_Repurchase || result["Immediate Repurchase"]),
+        LC: simResults.map(result => result.Loyal_Customer || result["Loyal Customer"]),
+        OB: simResults.map(result => result.Occasional_Buyer || result["Occasional Buyer"]),
+        DB: simResults.map(result => result.Discount_Buyer || result["Discount Buyer"])
+      };
+      
+      // Revenue data
+      const revenueData = simResults.map(result => result.Monthly_Revenue || result["Monthly Revenue"]);
+      
+      // Churn data
+      const churnData = simResults.map(result => result.Churn_Rate || result["Churn Rate"]);
+      
+      // Distribution data (final state)
+      const finalResult = simResults[simResults.length - 1];
+      const distributionData = [
+        finalResult.Immediate_Repurchase || finalResult["Immediate Repurchase"],
+        finalResult.Loyal_Customer || finalResult["Loyal Customer"],
+        finalResult.Occasional_Buyer || finalResult["Occasional Buyer"],
+        finalResult.Discount_Buyer || finalResult["Discount Buyer"],
+        finalResult.No_Repurchase || finalResult["No Repurchase"]
+      ];
+      
+      // Create vertical lines for scenario changes
+      const scenarioAnnotations = scenarioBreakpoints.slice(1).map(breakpoint => ({
+        type: 'line',
+        mode: 'vertical',
+        scaleID: 'x',
+        value: breakpoint.month,
+        borderColor: 'rgba(0, 0, 0, 0.5)',
+        borderWidth: 2,
+        borderDash: [5, 5],
+        label: {
+          content: breakpoint.scenario,
+          enabled: true,
+          position: 'top'
+        }
+      }));
+      
+      // Update/create segments chart
+      if (segmentsChart) {
+        segmentsChart.destroy();
+      }
+      
+      segmentsChart = new Chart(document.getElementById('segments-chart'), {
+        type: 'line',
+        data: {
+          labels: months,
+          datasets: [
+            {
+              label: 'Immediate Repurchase',
+              data: segmentData.IR,
+              borderColor: COLORS["Immediate Repurchase"],
+              backgroundColor: COLORS["Immediate Repurchase"] + '40',
+              tension: 0.1,
+              fill: true
+            },
+            {
+              label: 'Loyal Customer',
+              data: segmentData.LC,
+              borderColor: COLORS["Loyal Customer"],
+              backgroundColor: COLORS["Loyal Customer"] + '40',
+              tension: 0.1,
+              fill: true
+            },
+            {
+              label: 'Occasional Buyer',
+              data: segmentData.OB,
+              borderColor: COLORS["Occasional Buyer"],
+              backgroundColor: COLORS["Occasional Buyer"] + '40',
+              tension: 0.1,
+              fill: true
+            },
+            {
+              label: 'Discount Buyer',
+              data: segmentData.DB,
+              borderColor: COLORS["Discount Buyer"],
+              backgroundColor: COLORS["Discount Buyer"] + '40',
+              tension: 0.1,
+              fill: true
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            annotation: {
+              annotations: scenarioAnnotations
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  return context.dataset.label + ': ' + formatNumber(context.raw);
+                }
+              }
+            }
+          }
+        }
+      });
+      
+      // Update/create revenue chart
+      if (revenueChart) {
+        revenueChart.destroy();
+      }
+      
+      revenueChart = new Chart(document.getElementById('revenue-chart'), {
+        type: 'line',
+        data: {
+          labels: months,
+          datasets: [
+            {
+              label: 'Monthly Revenue',
+              data: revenueData,
+              borderColor: '#2ca02c',
+              backgroundColor: 'rgba(44, 160, 44, 0.1)',
+              borderWidth: 3,
+              tension: 0.1,
+              fill: true
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            annotation: {
+              annotations: scenarioAnnotations
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  return 'Revenue: ' + formatCurrency(context.raw);
+                }
+              }
+            }
+          },
+          scales: {
+            y: {
+              ticks: {
+                callback: function(value) {
+                  return '$' + (value / 1000).toFixed(0) + 'k';
+                }
+              }
+            }
+          }
+        }
+      });
+      
+      // Update/create churn chart
+      if (churnChart) {
+        churnChart.destroy();
+      }
+      
+      churnChart = new Chart(document.getElementById('churn-chart'), {
+        type: 'line',
+        data: {
+          labels: months,
+          datasets: [
+            {
+              label: 'Churn Rate',
+              data: churnData,
+              borderColor: '#d62728',
+              backgroundColor: 'rgba(214, 39, 40, 0.1)',
+              borderWidth: 3,
+              tension: 0.1,
+              fill: true
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            annotation: {
+              annotations: scenarioAnnotations
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  return 'Churn Rate: ' + formatPercent(context.raw);
+                }
+              }
+            }
+          },
+          scales: {
+            y: {
+              ticks: {
+                callback: function(value) {
+                  return value.toFixed(1) + '%';
+                }
+              }
+            }
+          }
+        }
+      });
+      
+      // Update/create distribution chart
+      // Find this part in your updateAllCharts function
+// Update/create distribution chart
+if (distributionChart) {
+  distributionChart.destroy();
+}
+
+// Replace it with this enhanced pie chart code:
+distributionChart = new Chart(document.getElementById('distribution-chart'), {
+  type: 'pie',
+  data: {
+    labels: STATES,
+    datasets: [
+      {
+        data: distributionData,
+        backgroundColor: [
+          COLORS["Immediate Repurchase"],
+          COLORS["Loyal Customer"],
+          COLORS["Occasional Buyer"],
+          COLORS["Discount Buyer"],
+          COLORS["No Repurchase"]
+        ]
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'right',
+        labels: {
+          // Generate better labels with percentages and counts
+          generateLabels: function(chart) {
+            const data = chart.data;
+            if (data.labels.length && data.datasets.length) {
+              const total = data.datasets[0].data.reduce((a, b) => a + b, 0);
+              
+              return data.labels.map(function(label, i) {
+                const meta = chart.getDatasetMeta(0);
+                const style = meta.controller.getStyle(i);
+                const value = chart.data.datasets[0].data[i];
+                const percentage = ((value / total) * 100).toFixed(1);
+                
+                return {
+                  text: `${label} (${formatNumber(Math.round(value))}, ${percentage}%)`,
+                  fillStyle: style.backgroundColor,
+                  strokeStyle: style.borderColor,
+                  lineWidth: style.borderWidth,
+                  hidden: !chart.getDataVisibility(i),
+                  index: i
+                };
+              });
+            }
+            return [];
+          },
+          boxWidth: 15,
+          padding: 15,
+          font: {
+            size: 11
+          }
+        }
+      },
+      title: {
+        display: true,
+        text: `Current Customer Distribution (Month ${finalResult.Month})`,
+        font: {
+          weight: 'bold'
+        }
+      },
+      tooltip: {
+        callbacks: {
+          label: function(context) {
+            const value = context.raw;
+            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+            const percentage = ((value / total) * 100).toFixed(1);
+            return `${context.label}: ${formatNumber(Math.round(value))} (${percentage}%)`;
+          }
+        }
+      }
+    }
+  }
+});
+      
+      // Update KPI cards
+      updateKPICards();
+    }
+    
+    function updateKPICards() {
+      if (simResults.length === 0) return;
+      
+      const initialResult = simResults[0];
+      const finalResult = simResults[simResults.length - 1];
+      
+      // Helper function to handle either property name
+      function getValue(obj, prop1, prop2) {
+        return obj[prop1] !== undefined ? obj[prop1] : obj[prop2];
+      }
+      
+      // Total customers
+      const initialCustomers = getValue(initialResult, 'Total_Customers', 'Total Customers');
+      const finalCustomers = getValue(finalResult, 'Total_Customers', 'Total Customers');
+      const customerGrowth = ((finalCustomers - initialCustomers) / initialCustomers * 100);
+      
+      document.getElementById('total-customers').textContent = formatNumber(finalCustomers);
+      const customerChangeEl = document.getElementById('customer-change');
+      customerChangeEl.textContent = customerGrowth >= 0 ? 
+        `↑ ${formatPercent(customerGrowth)}` : 
+        `↓ ${formatPercent(Math.abs(customerGrowth))}`;
+      customerChangeEl.className = `metric-change ${customerGrowth >= 0 ? 'positive-change' : 'negative-change'}`;
+      
+      // Monthly revenue
+      const initialRevenue = getValue(initialResult, 'Monthly_Revenue', 'Monthly Revenue');
+      const finalRevenue = getValue(finalResult, 'Monthly_Revenue', 'Monthly Revenue');
+      const revenueGrowth = ((finalRevenue - initialRevenue) / initialRevenue * 100);
+      
+      document.getElementById('monthly-revenue').textContent = formatCurrency(finalRevenue);
+      const revenueChangeEl = document.getElementById('revenue-change');
+      revenueChangeEl.textContent = revenueGrowth >= 0 ? 
+        `↑ ${formatPercent(revenueGrowth)}` : 
+        `↓ ${formatPercent(Math.abs(revenueGrowth))}`;
+      revenueChangeEl.className = `metric-change ${revenueGrowth >= 0 ? 'positive-change' : 'negative-change'}`;
+      
+      // Churn rate
+      const finalChurn = getValue(finalResult, 'Churn_Rate', 'Churn Rate');
+      let churnTrend = 0;
+      
+      if (simResults.length > 1) {
+        const previousChurn = getValue(simResults[simResults.length - 2], 'Churn_Rate', 'Churn Rate');
+        churnTrend = finalChurn - previousChurn;
+      }
+      
+      document.getElementById('churn-rate').textContent = formatPercent(finalChurn);
+      const churnTrendEl = document.getElementById('churn-trend');
+      churnTrendEl.textContent = churnTrend <= 0 ? 
+        `↓ ${formatPercent(Math.abs(churnTrend))}` : 
+        `↑ ${formatPercent(churnTrend)}`;
+      churnTrendEl.className = `metric-change ${churnTrend <= 0 ? 'positive-change' : 'negative-change'}`;
+      
+      // Revenue at risk
+      const annualRiskAmount = finalRevenue * (finalChurn / 100) * 12;
+      document.getElementById('revenue-at-risk').textContent = formatCurrency(annualRiskAmount);
+    }
+    
+    function updateAnalysis() {
+      if (simResults.length === 0) return;
+      
+      const initialResult = simResults[0];
+      const finalResult = simResults[simResults.length - 1];
+      
+      // Helper function to handle either property name
+      function getValue(obj, prop1, prop2) {
+        return obj[prop1] !== undefined ? obj[prop1] : obj[prop2];
+      }
+      
+      // Calculate metrics
+      const initialCustomers = getValue(initialResult, 'Total_Customers', 'Total Customers');
+      const finalCustomers = getValue(finalResult, 'Total_Customers', 'Total Customers');
+      const customerGrowth = ((finalCustomers - initialCustomers) / initialCustomers * 100);
+      
+      const initialRevenue = getValue(initialResult, 'Monthly_Revenue', 'Monthly Revenue');
+      const finalRevenue = getValue(finalResult, 'Monthly_Revenue', 'Monthly Revenue');
+      const revenueGrowth = ((finalRevenue - initialRevenue) / initialRevenue * 100);
+      
+      const initialRPC = initialRevenue / initialCustomers;
+      const finalRPC = finalRevenue / finalCustomers;
+      const rpcChange = ((finalRPC - initialRPC) / initialRPC * 100);
+      
+      // Calculate segment shifts
+      const segmentGrowth = {};
+      for (let i = 0; i < 4; i++) { // Skip No Repurchase
+        const state = STATES[i];
+        const initial = getValue(initialResult, state.replace(' ', '_'), state);
+        const final = getValue(finalResult, state.replace(' ', '_'), state);
+        
+        if (initial > 0) {
+          segmentGrowth[state] = ((final - initial) / initial * 100);
+        }
+      }
+      
+      // Find fastest growing/shrinking segments
+      let fastestGrowing = { name: "None", value: -Infinity };
+      let fastestShrinking = { name: "None", value: Infinity };
+      
+      Object.entries(segmentGrowth).forEach(([segment, growth]) => {
+        if (growth > fastestGrowing.value) {
+          fastestGrowing = { name: segment, value: growth };
+        }
+        if (growth < fastestShrinking.value) {
+          fastestShrinking = { name: segment, value: growth };
+        }
+      });
+      
+      // Update performance list
+      const performanceList = document.getElementById('performance-list');
+      performanceList.innerHTML = '';
+      
+      // Customer base growth
+      const customerLi = document.createElement('li');
+      customerLi.className = 'list-group-item';
+      customerLi.innerHTML = `<strong>Customer base:</strong> <span class="${customerGrowth >= 0 ? 'text-success' : 'text-danger'}">
+        ${customerGrowth >= 0 ? 'Growing' : 'Shrinking'} at ${Math.abs(customerGrowth).toFixed(1)}% over period</span>`;
+      performanceList.appendChild(customerLi);
+      
+      // Revenue trend
+      const revenueLi = document.createElement('li');
+      revenueLi.className = 'list-group-item';
+      revenueLi.innerHTML = `<strong>Revenue trend:</strong> <span class="${revenueGrowth >= 0 ? 'text-success' : 'text-danger'}">
+        ${revenueGrowth >= 0 ? 'Positive' : 'Negative'} at ${Math.abs(revenueGrowth).toFixed(1)}%</span>`;
+      performanceList.appendChild(revenueLi);
+      
+      // Revenue per customer
+      const rpcLi = document.createElement('li');
+      rpcLi.className = 'list-group-item';
+      rpcLi.innerHTML = `<strong>Revenue per customer:</strong> <span class="${rpcChange >= 0 ? 'text-success' : 'text-danger'}">
+        ${rpcChange >= 0 ? 'Increased' : 'Decreased'} by ${Math.abs(rpcChange).toFixed(1)}%</span>`;
+      performanceList.appendChild(rpcLi);
+      
+      // Update segments list
+      const segmentsList = document.getElementById('segments-list');
+      segmentsList.innerHTML = '';
+      
+      // Fastest growing segment
+      if (fastestGrowing.name !== "None") {
+        const growingLi = document.createElement('li');
+        growingLi.className = 'list-group-item';
+        growingLi.innerHTML = `<strong>Fastest growing:</strong> <span class="text-success">
+          ${fastestGrowing.name} (+${fastestGrowing.value.toFixed(1)}%)</span>`;
+        segmentsList.appendChild(growingLi);
+      }
+      
+      // Fastest shrinking segment
+      if (fastestShrinking.name !== "None" && fastestShrinking.value < 0) {
+        const shrinkingLi = document.createElement('li');
+        shrinkingLi.className = 'list-group-item';
+        shrinkingLi.innerHTML = `<strong>Fastest declining:</strong> <span class="text-danger">
+          ${fastestShrinking.name} (${fastestShrinking.value.toFixed(1)}%)</span>`;
+        segmentsList.appendChild(shrinkingLi);
+      }
+      
+      // Churn rate
+      const finalChurn = getValue(finalResult, 'Churn_Rate', 'Churn Rate');
+      let churnTrend = 0;
+      
+      if (simResults.length > 1) {
+        const previousChurn = getValue(simResults[simResults.length - 2], 'Churn_Rate', 'Churn Rate');
+        churnTrend = finalChurn - previousChurn;
+      }
+      
+      const churnLi = document.createElement('li');
+      churnLi.className = 'list-group-item';
+      churnLi.innerHTML = `<strong>Churn rate:</strong> ${formatPercent(finalChurn)}
+        <span class="${churnTrend <= 0 ? 'text-success' : 'text-danger'}">
+        (${churnTrend <= 0 ? 'Decelerating' : 'Accelerating'})</span>`;
+      segmentsList.appendChild(churnLi);
+    }
+    
+    function updateDataTable() {
+      if (simResults.length === 0) return;
+      
+      const tableBody = document.querySelector('#data-table tbody');
+      tableBody.innerHTML = '';
+      
+      // Helper function to handle either property name
+      function getValue(obj, prop1, prop2) {
+        return obj[prop1] !== undefined ? obj[prop1] : obj[prop2];
+      }
+      
+      simResults.forEach((result, index) => {
+        const row = document.createElement('tr');
+        
+        // Check if this is a scenario change point
+        const isScenarioChange = scenarioBreakpoints.some(bp => 
+          bp.month === result.Month && bp.month > 0
+        );
+        
+        if (isScenarioChange) {
+          row.className = 'scenario-change-row';
+        }
+        
+        // Month column with scenario change badge
+        const monthCell = document.createElement('td');
+        monthCell.textContent = result.Month;
+        
+        if (isScenarioChange) {
+          const badge = document.createElement('span');
+          badge.className = 'badge bg-info ms-2';
+          badge.textContent = 'New Scenario';
+          monthCell.appendChild(badge);
+        }
+        
+        row.appendChild(monthCell);
+        
+        // Segment columns
+        row.appendChild(createCell(getValue(result, 'Immediate_Repurchase', 'Immediate Repurchase')));
+        row.appendChild(createCell(getValue(result, 'Loyal_Customer', 'Loyal Customer')));
+        row.appendChild(createCell(getValue(result, 'Occasional_Buyer', 'Occasional Buyer')));
+        row.appendChild(createCell(getValue(result, 'Discount_Buyer', 'Discount Buyer')));
+        row.appendChild(createCell(getValue(result, 'No_Repurchase', 'No Repurchase')));
+        
+        // Total customers
+        row.appendChild(createCell(getValue(result, 'Total_Customers', 'Total Customers')));
+        
+        // Revenue
+        const revenueCell = document.createElement('td');
+        revenueCell.textContent = formatCurrency(getValue(result, 'Monthly_Revenue', 'Monthly Revenue'));
+        row.appendChild(revenueCell);
+        
+        // Churn rate
+        const churnCell = document.createElement('td');
+        churnCell.textContent = formatPercent(getValue(result, 'Churn_Rate', 'Churn Rate'));
+        row.appendChild(churnCell);
+        
+        tableBody.appendChild(row);
+      });
+      
+      function createCell(value) {
+        const cell = document.createElement('td');
+        cell.textContent = formatNumber(Math.round(value));
+        return cell;
+      }
+    }
+  </script>
+</body>
+</html>
